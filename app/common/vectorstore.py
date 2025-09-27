@@ -1,14 +1,13 @@
-
-# ---------------------------
-# app/vectorstore.py
-# ---------------------------
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from typing import Dict, Any, List
 import numpy as np
 import os
+from dotenv import load_dotenv
 
-MONGODB_URI = os.environ.get('MONGODB_URI')
+load_dotenv()
+
+MONGODB_URI = os.getenv('MONGODB_URI')
 client = MongoClient(MONGODB_URI)
 DB = client['pharma_copilot']
 TRIALS_COL: Collection = DB['trials']

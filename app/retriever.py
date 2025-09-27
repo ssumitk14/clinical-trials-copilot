@@ -2,8 +2,8 @@
 # app/retriever.py
 # ---------------------------
 from typing import List
-from .embeddings import get_embedding
-from .vectorstore import query_similar
+from .common.embeddings import get_embedding
+from .common.vectorstore import query_similar
 
 
 def retrieve(query: str, top_k: int = 5):

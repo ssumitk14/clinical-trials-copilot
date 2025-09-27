@@ -1,10 +1,6 @@
-
-# ---------------------------
-# app/summarizer.py
-# ---------------------------
 import openai
 from typing import Dict
-from llm_services import LLMService
+from app.common.llm_services import LLMService
 
 llm_service = LLMService()
 

@@ -2,14 +2,14 @@ import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import streamlit as st
-from app.ctgov_fetcher import fetch_full_study
-from app.etl import normalize_study
-from app.vectorstore import upsert_trial, query_similar
-from app.summarizer import structured_summary
-from app.compliance_validator import validate_compliance
-from app.comparator import compare_trials
-from app.risk_model import build_risk_pipeline, featurize_trial_record
-from app.embeddings import EmbeddingService
+from app.common.ctgov_fetcher import fetch_full_study
+from app.common.etl import normalize_study
+from app.common.vectorstore import upsert_trial, query_similar
+from app.trial_summarization.summarizer import structured_summary
+from app.compliance_validation.compliance_validator import validate_compliance
+from app.cross_trial_comparison.comparator import compare_trials
+from app.risk_analysis.risk_model import build_risk_pipeline, featurize_trial_record
+from app.common.embeddings import EmbeddingService
 
 embedding_obj = EmbeddingService()
 
