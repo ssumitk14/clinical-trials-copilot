@@ -10,6 +10,7 @@ import re
 class TrialRecord(BaseModel):
     nctid: str
     title: Optional[str]
+    brief_summary: Optional[str]
     phase: Optional[list]
     conditions: Optional[list]
     interventions: Optional[list]
@@ -31,6 +32,7 @@ def normalize_study(study_json: dict) -> TrialRecord:
     design = protocol.get('designModule', {})
     outcomes = protocol.get('outcomesModule', {})
     conditions = protocol.get('conditionsModule', {}).get('conditions', [])
+    description_module = protocol.get('descriptionModule', {})
 
     # outcomes
     outcomes = protocol.get('outcomesModule', {})
@@ -58,6 +60,7 @@ def normalize_study(study_json: dict) -> TrialRecord:
     tr = TrialRecord(
         nctid=identification.get('nctId') if identification else "",
         title=identification.get('briefTitle') or identification.get('officialTitle'),
+        brief_summary=description_module.get('briefSummary', ''),
         phase=design.get('phases', []),
         conditions=conditions,
         interventions=protocol.get('armsInterventionsModule', {}).get('interventions', []),

@@ -1,16 +1,21 @@
 import openai
 from typing import Dict
 from app.common.llm_services import LLMService
+from app.models import TrialSummary
 
 llm_service = LLMService()
 
-def structured_summary(trial_doc: Dict, model: str = 'gpt-4o-mini') -> Dict:
+def structured_summary(trial_doc: Dict, model: str = 'gpt-4o-mini', use_raw = False) -> Dict:
     """Produce a structured summary (phase, endpoints, arms, population, outcomes).
     This function uses a prompt template and calls the OpenAI ChatCompletion API.
     """
+    if use_raw:
+        context_parts = [f'{key}' + f'{value}' for key, value in trial_doc.items()]
+        context_parts = "\n".join(context_parts)
     # Build a concise context with fields to avoid token overload
     context_parts = []
     context_parts.append(f"NCTID: {trial_doc.get('nctid')}")
+    context_parts.append(f"Brief Summary: {trial_doc.get('brief_summary')}")
     if trial_doc.get('title'):
         context_parts.append(f"Title: {trial_doc.get('title')}")
     if trial_doc.get('phase'):
@@ -27,26 +32,20 @@ def structured_summary(trial_doc: Dict, model: str = 'gpt-4o-mini') -> Dict:
     arms = trial_doc.get('arms') or []
     if arms:
         context_parts.append('Arms: ' + '; '.join(arms))
+    
 
     prompt = """
-You are an assistant that extracts a structured clinical trial summary. Output valid JSON with keys:
-phase, endpoints (list), arms (list), population (eligibility summary), outcomes (primary/secondary), sample_size, notable_adverse_events (if any).
-
+You are an assistant that extracts a structured clinical trial summary. 
 Context:
 """ + "\n".join(context_parts)
 
     response = llm_service.get_llm_response(
         system_prompt="You are a clinical trials summarization assistant.",
         user_query=prompt,
-        model=model
+        model=model,
+        response_format="structured",
+        pydantic_model=TrialSummary
     )
 
     print("COMPLETIONS :: ", response)
-    # text = completion['choices'][0]['message']['content']
-    # Return raw assistant text as a best-effort parse. In production, validate JSON.
-    try:
-        import json
-        out = json.loads(response)
-    except Exception:
-        out = {'raw_text': response}
-    return out
+    return response
