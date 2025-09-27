@@ -1,0 +1,13 @@
+streamlit
+requests
+pydantic
+openai
+pymongo[srv]
+scikit-learn
+numpy
+pandas
+nltk
+rouge-score
+bert-score
+tqdm
+python-dotenv
