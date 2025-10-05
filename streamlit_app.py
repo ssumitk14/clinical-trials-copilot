@@ -5,14 +5,20 @@ import streamlit as st
 from app.common.ctgov_fetcher import fetch_full_study
 from app.common.etl import normalize_study
 from app.common.vectorstore import upsert_trial, query_similar
+from app.common.embeddings import EmbeddingService
+from app.common.llm_services import LLMService
 from app.trial_summarization.summarizer import structured_summary
 from app.compliance_validation.compliance_validator import validate_compliance
 from app.cross_trial_comparison.comparator import compare_trials
 from app.risk_analysis.risk_model import build_risk_pipeline, featurize_trial_record
-from app.common.embeddings import EmbeddingService
 from app.display_handler import TrialDisplayHandler, DevDisplayHandler
+from app.config import MongoConfig, OpenAIConfig
+from app.services.storage_services import MongoDBService
+from app.prompt import summary_prompt
+from app.models import TrialSummary
 
 embedding_obj = EmbeddingService()
+mongo_obj = MongoDBService(MongoConfig.MONGODB_URI, MongoConfig.DB_NAME, MongoConfig.SEARCH_INDEX_NAME)
 
 st.set_page_config(layout='wide')
 st.title('Clinical Trials Pharma-Copilot')
@@ -39,35 +45,47 @@ if action in process_options:
     st.sidebar.info(f"Selected: {process}")
 
 if action == 'Fetch trial':
-    nct = st.sidebar.text_input('NCTID', value='')
-    if st.sidebar.button('Fetch and normalize'):
-        if not nct:
-            st.sidebar.error('Enter an NCTID e.g. NCT00000000')
-        else:
-            with st.spinner(f'Fetching using {process}...'):
-                raw = fetch_full_study(nct)
-                tr = normalize_study(raw)
-                
-                # Process-specific handling
-                if process == process_options[action][0]:  # Baseline
+    # Process-specific handling
+    if process == process_options[action][0]:  # Baseline
+        nct = st.sidebar.text_input('NCTID', value='')
+        if st.sidebar.button('Fetch and normalize'):
+            if not nct:
+                st.sidebar.error('Enter an NCTID e.g. NCT00000000')
+            else:
+                with st.spinner(f'Fetching using {process}...'):
+                    raw = fetch_full_study(nct)
+                    tr = normalize_study(raw)
                     st.subheader('Structured record')
                     st.json(tr.model_dump())
                     summ = structured_summary(tr.model_dump())
                     TrialDisplayHandler.display_card_format(summ)
 
-                elif process == process_options[action][1]:
-                    # TODO: Using RAG
-                    DevDisplayHandler.basic_message()
-                    
-                elif process == process_options[action][2]:
-                    # TODO: Multi Agent approach
-                    DevDisplayHandler.basic_message()
-                
-                # Common operations for all processes
-                text = tr.title or ''
-                emb = embedding_obj.create_embedding(text)
-                upsert_trial(tr.model_dump(), text, emb)
-                st.success('Indexed locally (MongoDB)')
+                    text = tr.title or ''
+                    emb = embedding_obj.create_embedding(text)
+                    upsert_trial(tr.model_dump(), text, emb)
+                    st.success('Indexed locally (MongoDB)')
+
+    elif process == process_options[action][1]:
+        nct = st.sidebar.text_input('NCTID', value='')
+        search_text = st.sidebar.text_input('Query', help='🔍 Search any trial related query')
+        
+        if st.sidebar.button('Generate Summary'):
+            query_embedding = embedding_obj.create_embedding(text=search_text)
+            print("NCT ::", nct)
+            results = mongo_obj.vector_search_filter(MongoConfig.EMBEDDING_COLLECTION_NAME, query_embedding, limit=1, nct_id=nct)
+            to_filter = ["nctId", "title", "text_blob"]
+            results = [{k: d[k] for k in to_filter if k in d} for d in results]
+            print("Search results -- filtered:: ", results)
+            llm_service = LLMService()
+            prompt = llm_service.build_prompt(summary_prompt, results)
+            response = llm_service.get_llm_response(prompt, search_text, response_format="structured", pydantic_model=TrialSummary)
+            TrialDisplayHandler.display_card_format(response)
+            # DevDisplayHandler.basic_message()
+        
+    elif process == process_options[action][2]:
+        # TODO: Multi Agent approach
+        DevDisplayHandler.basic_message()
+    
 
 elif action == 'Compare two trials':
     n1 = st.sidebar.text_input('NCTID 1')

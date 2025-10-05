@@ -11,7 +11,7 @@ class LLMService:
 
     def build_prompt(self, system_prompt: str, search_results: list):
         results_text = "\n".join([f"{i+1}. {res['text_blob']}" for i, res in enumerate(search_results)])
-        prompt = f"{system_prompt}\n\nHere are some relevant clinical trials:\n{results_text}\n\nBased on the above trials, please provide a summary."
+        prompt = f"{system_prompt}\n\nHere are some relevant clinical trials:\n{results_text}\n\nBased on the above trials and given query, please provide a detailed summary."
         return prompt
     
 
