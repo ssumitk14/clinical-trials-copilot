@@ -109,7 +109,12 @@ if action == 'Fetch trial':
                     llm_summary = llm_service.get_llm_response(prompt, search_text, response_format="structured", pydantic_model=TrialSummary)
 
                     # Compare summaries and select the best one
-                    best_summary = basic_summary if len(basic_summary) > len(llm_summary) else llm_summary
+                    if basic_summary.detailed_description:
+                        best_summary = basic_summary
+                    elif llm_summary.detailed_description:
+                        best_summary = llm_summary
+                    else:
+                        best_summary = basic_summary if basic_summary.brief_summary else llm_summary
                     st.subheader('Best Summary')
                     st.write(best_summary)
 
