@@ -83,9 +83,35 @@ if action == 'Fetch trial':
             # DevDisplayHandler.basic_message()
         
     elif process == process_options[action][2]:
-        # TODO: Multi Agent approach
-        DevDisplayHandler.basic_message()
-    
+        # Multi-Agent approach implementation
+        nct = st.sidebar.text_input('NCTID', value='')
+        search_text = st.sidebar.text_input('Query', help='🔍 Search any trial related query')
+
+        if st.sidebar.button('Generate Multi-Agent Summary'):
+            if not nct or not search_text:
+                st.sidebar.error('Enter both NCTID and search text')
+            else:
+                with st.spinner('Generating summary using Multi-Agent approach...'):
+                    # Fetch trial data
+                    raw = fetch_full_study(nct)
+                    tr = normalize_study(raw)
+
+                    # Generate basic summary
+                    basic_summary = structured_summary(tr.model_dump())
+
+                    # Generate LLM-based summary
+                    query_embedding = embedding_obj.create_embedding(text=search_text)
+                    results = mongo_obj.vector_search_filter(MongoConfig.EMBEDDING_COLLECTION_NAME, query_embedding, limit=1, nct_id=nct)
+                    to_filter = ["nctId", "title", "text_blob"]
+                    results = [{k: d[k] for k in to_filter if k in d} for d in results]
+                    llm_service = LLMService()
+                    prompt = llm_service.build_prompt(summary_prompt, results)
+                    llm_summary = llm_service.get_llm_response(prompt, search_text, response_format="structured", pydantic_model=TrialSummary)
+
+                    # Compare summaries and select the best one
+                    best_summary = basic_summary if len(basic_summary) > len(llm_summary) else llm_summary
+                    st.subheader('Best Summary')
+                    st.write(best_summary)
 
 elif action == 'Compare two trials':
     n1 = st.sidebar.text_input('NCTID 1')
