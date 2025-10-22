@@ -47,5 +47,5 @@ Context:
         pydantic_model=TrialSummary
     )
 
-    print("COMPLETIONS :: ", response)
+    print("COMPLETIONS :: ", type(response))
     return response

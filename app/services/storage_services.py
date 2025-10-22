@@ -1,7 +1,7 @@
 from pymongo import MongoClient
 
 class MongoDBService:
-    def __init__(self, uri: str, db_name: str, vector_search_index: str):
+    def __init__(self, uri: str, db_name: str, vector_search_index: str=None):
         self.client = MongoClient(uri)
         self.db = self.client[db_name]
         self.vector_search_index = vector_search_index

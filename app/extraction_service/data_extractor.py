@@ -119,7 +119,7 @@ def build_trial_text(trial):
     # Description
     if trial["Description"].get("briefSummary"):
         parts.append("Summary: " + trial["Description"]["briefSummary"])
-        # parts.append("Detailed Description: "+ trial["Description"].get("detailedDescription", "Not Available"))
+        parts.append("Detailed Description: "+ trial["Description"].get("detailedDescription", "Not Available"))
 
     # Design
     design = trial.get("Design", {})

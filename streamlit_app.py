@@ -59,9 +59,19 @@ if action == 'Fetch trial':
                     raw = fetch_full_study(nct)
                     tr = normalize_study(raw)
                     st.subheader('Structured record')
-                    # st.json(tr.model_dump())
                     summ = structured_summary(tr.model_dump())
+
+                    attributes = vars(summ)
+                    formatted_pairs = [f"{key} :: {value}" for key, value in attributes.items()]
+                    detailed_description = " | ".join(formatted_pairs)
                     TrialDisplayHandler.display_card_format(summ)
+
+                    # Evaluate summaries
+                    ground_truth = tr.detailed_summary or tr.brief_summary  
+                    baseline_eval = Utility.evaluate_summaries(detailed_description, ground_truth, embedding_obj)
+
+                    st.subheader('Evaluation Results')
+                    st.json(baseline_eval)
 
                     text = tr.title or ''
                     emb = embedding_obj.create_embedding(text)
@@ -78,12 +88,25 @@ if action == 'Fetch trial':
             results = mongo_obj.vector_search_filter(MongoConfig.EMBEDDING_COLLECTION_NAME, query_embedding, limit=1, nct_id=nct)
             to_filter = ["nctId", "title", "text_blob"]
             results = [{k: d[k] for k in to_filter if k in d} for d in results]
-            print("Search results -- filtered:: ", results)
             prompt = llm_service.build_prompt(summary_prompt, results)
             response = llm_service.get_llm_response(prompt, search_text, response_format="structured", pydantic_model=TrialSummary)
+            print("Summary ::")
+            print(response)
             TrialDisplayHandler.display_card_format(response)
             # DevDisplayHandler.basic_message()
-        
+            attributes = vars(response)
+            formatted_pairs = [f"{key} :: {value}" for key, value in attributes.items()]
+            detailed_description = " | ".join(formatted_pairs)
+
+            # Evaluate summaries
+            raw = fetch_full_study(nct)
+            tr = normalize_study(raw)
+            ground_truth = tr.brief_summary  # Assuming brief_summary is available in the normalized trial data
+            rag_eval = Utility.evaluate_summaries(detailed_description, ground_truth, embedding_obj)
+
+            st.subheader('Evaluation Results')
+            st.json(rag_eval)
+
     elif process == process_options[action][2]:
         # Multi-Agent approach implementation
         nct = st.sidebar.text_input('NCTID', value='')

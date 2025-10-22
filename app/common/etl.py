@@ -11,6 +11,7 @@ class TrialRecord(BaseModel):
     nctid: str
     title: Optional[str]
     brief_summary: Optional[str]
+    detailed_summary: Optional[str]
     phase: Optional[list]
     conditions: Optional[list]
     interventions: Optional[list]
@@ -61,6 +62,7 @@ def normalize_study(study_json: dict) -> TrialRecord:
         nctid=identification.get('nctId') if identification else "",
         title=identification.get('briefTitle') or identification.get('officialTitle'),
         brief_summary=description_module.get('briefSummary', ''),
+        detailed_summary=description_module.get('detailedDescription', ''),
         phase=design.get('phases', []),
         conditions=conditions,
         interventions=protocol.get('armsInterventionsModule', {}).get('interventions', []),

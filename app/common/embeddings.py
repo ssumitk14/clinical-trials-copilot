@@ -22,7 +22,7 @@ class EmbeddingService:
         return response.data[0].embedding
     
     def create_embeddings_bulk(self, texts: list, model: str = "text-embedding-3-large"):
-        embeddings = self.create_embedding(model=model, input=texts)
+        embeddings = self.create_embedding(model=model, text=texts)
         
         return embeddings
     
