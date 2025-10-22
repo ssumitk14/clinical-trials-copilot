@@ -25,7 +25,7 @@ class TrialRecord(BaseModel):
 
 
 def normalize_study(study_json: dict) -> TrialRecord:
-    print(study_json)
+    # print(study_json)
     protocol = study_json.get('protocolSection', {})
     status = protocol.get('statusModule', {})
     identification = protocol.get('identificationModule', {})

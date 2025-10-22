@@ -2,20 +2,22 @@ import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import streamlit as st
+import pandas as pd
 from app.common.ctgov_fetcher import fetch_full_study
 from app.common.etl import normalize_study
 from app.common.vectorstore import upsert_trial, query_similar
 from app.common.embeddings import EmbeddingService
 from app.common.llm_services import LLMService
+from app.common.utils import Utility
 from app.trial_summarization.summarizer import structured_summary
 from app.compliance_validation.compliance_validator import validate_compliance
-from app.cross_trial_comparison.comparator import compare_trials
+from app.cross_trial_comparison.comparator import compare_trials, extract_trial_info
 from app.risk_analysis.risk_model import build_risk_pipeline, featurize_trial_record
 from app.display_handler import TrialDisplayHandler, DevDisplayHandler
 from app.config import MongoConfig, OpenAIConfig
 from app.services.storage_services import MongoDBService
-from app.prompt import summary_prompt
-from app.models import TrialSummary
+from app.prompt import summary_prompt, comparison_system_prompt
+from app.models import TrialSummary, CrossTrials
 
 embedding_obj = EmbeddingService()
 mongo_obj = MongoDBService(MongoConfig.MONGODB_URI, MongoConfig.DB_NAME, MongoConfig.SEARCH_INDEX_NAME)
@@ -28,11 +30,12 @@ action = st.sidebar.selectbox('Action', ['Fetch trial', 'Compare two trials', 'C
 
 # Define process options for each action
 process_options = {
-    'Fetch trial': ['Baseline', 'RAG (Single-Agent)', 'Multi-Agent'],
-    'Compare two trials': ['Basic Comparison', 'Detailed Comparison', 'Statistical Comparison'],
+    'Fetch trial': ['Baseline', 'RAG',], # 'Multi-Agent'],
+    'Compare two trials': ['Basic Comparison', 'LLM Based Detailed Comparison'],
     'Compliance check': ['Basic Validation', 'Full Compliance Check', 'Regulatory Review'],
     'Predict risk': ['Simple Risk Assessment', 'Advanced ML Prediction', 'Ensemble Prediction']
 }
+llm_service = LLMService()
 
 # Second dropdown for Process selection (conditional)
 if action in process_options:
@@ -56,7 +59,7 @@ if action == 'Fetch trial':
                     raw = fetch_full_study(nct)
                     tr = normalize_study(raw)
                     st.subheader('Structured record')
-                    st.json(tr.model_dump())
+                    # st.json(tr.model_dump())
                     summ = structured_summary(tr.model_dump())
                     TrialDisplayHandler.display_card_format(summ)
 
@@ -76,7 +79,6 @@ if action == 'Fetch trial':
             to_filter = ["nctId", "title", "text_blob"]
             results = [{k: d[k] for k in to_filter if k in d} for d in results]
             print("Search results -- filtered:: ", results)
-            llm_service = LLMService()
             prompt = llm_service.build_prompt(summary_prompt, results)
             response = llm_service.get_llm_response(prompt, search_text, response_format="structured", pydantic_model=TrialSummary)
             TrialDisplayHandler.display_card_format(response)
@@ -104,7 +106,6 @@ if action == 'Fetch trial':
                     results = mongo_obj.vector_search_filter(MongoConfig.EMBEDDING_COLLECTION_NAME, query_embedding, limit=1, nct_id=nct)
                     to_filter = ["nctId", "title", "text_blob"]
                     results = [{k: d[k] for k in to_filter if k in d} for d in results]
-                    llm_service = LLMService()
                     prompt = llm_service.build_prompt(summary_prompt, results)
                     llm_summary = llm_service.get_llm_response(prompt, search_text, response_format="structured", pydantic_model=TrialSummary)
 
@@ -130,34 +131,41 @@ elif action == 'Compare two trials':
                 t2 = normalize_study(fetch_full_study(n2))
                 
                 # Process-specific comparison
-                if process == 'Basic Comparison':
+                if process == process_options[action][0]:
                     st.subheader('Basic Comparison Results')
-                    comp = compare_trials(t1.model_dump(), t2.model_dump())
-                    st.json(comp)
+                    trial_1_data = extract_trial_info(t1.raw)
+                    trial_2_data = extract_trial_info(t2.raw)
+                    df = pd.DataFrame({n1: trial_1_data, n2: trial_2_data})
+                    # convert all cells to strings (JSON for lists/dicts) to avoid pyarrow serialization errors
+                    df = df.map(Utility._safe_cell).astype("string")
+                    
+                    st.dataframe(df)        
                 
-                elif process == 'Detailed Comparison':
+                elif process == process_options[action][1]:
                     st.subheader('Detailed Comparison Analysis')
-                    comp = compare_trials(t1.model_dump(), t2.model_dump())
+                    trial_1_data = extract_trial_info(t1.raw)
+                    trial_2_data = extract_trial_info(t2.raw)
+                    trial_1 = CrossTrials(**trial_1_data)
+                    trial_2 = CrossTrials(**trial_2_data)
+                    prompt = llm_service.build_comparison_prompt([trial_1, trial_2])
+
+                    comp = llm_service.get_llm_response(comparison_system_prompt, prompt)
+                    # comp = compare_trials(t1.model_dump(), t2.model_dump())
                     
                     # Create comparison summary
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"**Trial 1:** {n1}")
-                        st.write(f"Title: {t1.title}")
-                    with col2:
-                        st.write(f"**Trial 2:** {n2}")
-                        st.write(f"Title: {t2.title}")
+                    st.markdown("---")
+                    st.subheader("📊 Comparative Table")
+                    st.markdown(comp)
+                    # col1, col2 = st.columns(2)
+                    # with col1:
+                    #     st.write(f"**Trial 1:** {n1}")
+                    #     st.write(f"Title: {t1.title}")
+                    # with col2:
+                    #     st.write(f"**Trial 2:** {n2}")
+                    #     st.write(f"Title: {t2.title}")
                     
-                    st.subheader('Comparison Results')
-                    st.json(comp)
-                
-                elif process == 'Statistical Comparison':
-                    st.subheader('Statistical Comparison Analysis')
-                    comp = compare_trials(t1.model_dump(), t2.model_dump())
-                    st.json(comp)
-                    st.subheader('Statistical Insights')
-                    st.write("📈 **Statistical analysis would be performed here**")
-                    # Add statistical analysis implementation
+                    # st.subheader('Comparison Results')
+                    # st.json(comp)
 
 elif action == 'Compliance check':
     nct = st.sidebar.text_input('NCTID')

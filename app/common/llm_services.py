@@ -1,6 +1,8 @@
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
+from app.models import CrossTrials
+from typing import List
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -14,6 +16,33 @@ class LLMService:
         prompt = f"{system_prompt}\n\nHere are some relevant clinical trials:\n{results_text}\n\nBased on the above trials and given query, please provide a detailed summary."
         return prompt
     
+    def build_comparison_prompt(self, trials: List[CrossTrials]) -> str:
+        """Generate a structured, consistent LLM prompt using Pydantic model data."""
+        trials_text = ""
+        for i, trial in enumerate(trials, start=1):
+            trial_json = trial.model_dump_json(indent=2)
+            trials_text += f"Trial {i}:\n{trial_json}\n\n"
+
+        prompt = f"""
+        You are a biomedical research assistant specializing in clinical trial intelligence.
+
+        Compare the following clinical trials based on the provided structured data.
+        Generate a **human-readable comparative table** in markdown format with columns:
+        | Field | Trial 1 | Trial 2 | Observation |
+
+        Instructions:
+        - Use only the provided data fields.
+        - Highlight differences and similarities between trials.
+        - Be concise and factual.
+        - Keep numeric and date fields as-is.
+        - Use 'Not Reported' if data is missing.
+
+        {trials_text}
+
+        Now produce the comparative table:
+        """
+        return prompt
+
 
     def get_llm_response(self, system_prompt: str, user_query: str, model: str = "gpt-4o", response_format: str = "text", pydantic_model = None):
         messages = [
@@ -43,6 +72,7 @@ class LLMService:
         else:
             response = self.client.chat.completions.create(
                 model=model,
-                messages=messages
+                messages=messages,
+                temperature=0
             )
             return response.choices[0].message.content
